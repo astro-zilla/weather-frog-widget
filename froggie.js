@@ -3,7 +3,10 @@
 // icon-color: deep-green; icon-glyph: frog;
 
 async function getWeatherHTML(city) {
-  const request = new Request(`https://www.google.com/search?q=weather+${city}`)
+  let url= "https://www.google.com/search?q=weather";
+  if (city!==null) {url=url+`+${city}`}
+
+  const request = new Request(url)
   request.method = 'GET'
   request.headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.10'}
   let webview = new WebView()
@@ -23,9 +26,10 @@ function getGradientColors(html) {
 function getForecastInfo(html) {
 
   const forecastInfo = {
-    temp: `${/Now<\/div><div[^>]+><div><div[^>]+><span[^>]+><span[^>]+>(\d+)/.exec(html)[1]}°`,
+    temp: `${/Now<\/div><div[^>]+><div><div[^>]+><span[^>]+><span[^>]+>(\d+)/gm.exec(html)[1]}°`,
     feelsLike: `Feels like ${/Feels like <span[^>]+><span[^>]+>(\d+)/gm.exec(html)[1]}°`,
-    image: /<img id="dimg_21"[^>]src="([^"]+)/gm.exec(html)[1],
+    location: /Results for <\/span><span class="V8fWH"><div><\/div><\/span><span class="BBwThe">([^<]+)/gm.exec(html)[1],
+    image: /degrees<\/span><\/span><g-img><img[^>]+src="([^"]+)/gm.exec(html)[1],
     summary: /<div class="crimBc">([^<]+)/gm.exec(html)[1],
     precip: html.match(/(Precip: \d+%)/gm)[0],
     humidity: html.match(/(Humidity: \d+%)/gm)[0],
@@ -40,10 +44,7 @@ async function createWidget() {
   let padding = ((deviceScreen.width - 240) /5)
   let widgetSize = new Size(padding*4 + 240, padding*2 + 120)
 
-  let html = await getWeatherHTML('cambridge')
-
-
-  let black = new Color("000000")
+  let html = await getWeatherHTML(args.widgetParameter)
 
   let listWidget = new ListWidget()
 
@@ -75,6 +76,8 @@ async function createWidget() {
   temp.font=Font.systemFont(36)
   let feelsLike = summaryStack.addText(forecastInfo.feelsLike)
   feelsLike.font=Font.systemFont(14)
+  let location = summaryStack.addText(forecastInfo.location)
+  location.font=Font.systemFont(14)
 
   const img_html=`<div style='max-width: 100%;max-height:100%;'><img src='${forecastInfo.image}' height='150' width='150' alt=''></div>`
 
@@ -134,6 +137,11 @@ async function createWidget() {
 
   listWidget.setPadding(0,0,0,0)
   textStack.setPadding(15,25,0,5)
+
+  if (config.widgetFamily=='large') {
+    forecastStack=listWidget.addStack()
+  }
+
   return listWidget
 }
 
