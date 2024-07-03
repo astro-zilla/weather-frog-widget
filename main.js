@@ -7,7 +7,7 @@
 // jshint -W119
 
 let scriptName = 'froggie';
-let scriptUrl = 'https://raw.githubusercontent.com/astro-zilla/weather-frog-widget/main/Froggie.js';
+let scriptUrl = 'https://raw.githubusercontent.com/astro-zilla/weather-frog-widget/main/froggie.js';
 
 let modulePath = await downloadModule(scriptName, scriptUrl); // jshint ignore:line
 if (modulePath != null) {
