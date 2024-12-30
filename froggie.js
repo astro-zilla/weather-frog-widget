@@ -2,6 +2,10 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: deep-green; icon-glyph: frog;
 
+const Base64ToImage = await importModule('Base64ToImage')
+const black = new Color("000000")
+const white = new Color("FFFFFF")
+
 async function getWeatherHTML(city) {
   let url= "https://www.google.com/search?q=weather";
   if (city!==null) {url=url+`+${city}`}
@@ -11,7 +15,7 @@ async function getWeatherHTML(city) {
   request.headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.10'}
   let webview = new WebView()
   await webview.loadRequest(request)
-  return webview.getHTML()
+  return webview
 }
 
 function getFroggieURL(html) {
@@ -23,20 +27,73 @@ function getGradientColors(html) {
   return [new Color(c[1]),new Color(c[2])]
 }
 
-function getForecastInfo(html) {
-
-  const forecastInfo = {
-    temp: `${/Now<\/div><div[^>]+><div><div[^>]+><span[^>]+><span[^>]+>(\d+)/gm.exec(html)[1]}°`,
-    feelsLike: `Feels like ${/Feels like <span[^>]+><span[^>]+>(\d+)/gm.exec(html)[1]}°`,
-    location: /Results for <\/span><span class="V8fWH"><div><\/div><\/span><span class="BBwThe">([^<]+)/gm.exec(html)[1],
-    image: /degrees<\/span><\/span><g-img><img[^>]+src="([^"]+)/gm.exec(html)[1],
-    summary: /<div class="crimBc">([^<]+)/gm.exec(html)[1],
-    precip: html.match(/(Precip: \d+%)/gm)[0],
-    humidity: html.match(/(Humidity: \d+%)/gm)[0],
-    wind: /data-f="(Wind: \d+ [\w\/]+)/gm.exec(html)[1] // change data-f to data-c for metric
+async function getForecastInfo(webview) {
+  let js = `
+  var weatherInfo = document.querySelector('.iajBOd')
+  var res = {
+    temp: weatherInfo.querySelector('.AZovPc > div:nth-child(1)').innerHTML,
+    feelsLike: weatherInfo.querySelector('span.mPUmSe > div:nth-child(1)').innerHTML,
+    location: document.querySelector('span.BBwThe').innerHTML,
+    image: weatherInfo.querySelector('.lP6sWe > g-img:nth-child(2) > img:nth-child(1)').src,
+    summary: weatherInfo.querySelector('.crimBc').innerHTML,
+    precip: "Precip: " + weatherInfo.querySelector('div.mPUmSe:nth-child(2) > span:nth-child(2)').innerHTML,
+    humidity: "Humidity: " + weatherInfo.querySelector('.TEk95b > div:nth-child(3) > span:nth-child(2)').innerHTML,
+    wind: "Wind: " + weatherInfo.querySelector('.TToly').innerHTML
   }
-  
-  return forecastInfo
+  res
+  `
+  let res = await webview.evaluateJavaScript(js)
+  return res
+}
+
+async function addWeatherTiles(widget,html,num) {
+
+  const carouselHTML = /<g-scrolling-carousel[^>]+jsname="wFMUUc" jscontroller="pgCXqb"[^>]+>(.*?)<\/g-scrolling-carousel>/gm.exec(html)[1]
+  const innerCardOpen = [...carouselHTML.matchAll(/<g-inner-card[^>]+>/gm)]
+  const innerCardClose = [...carouselHTML.matchAll(/<\/g-inner-card>/gm)]
+
+  let innerCardHTML="",timeStr="",tempStr="",imgStr=""
+
+  for (let idx=0; idx<num; idx++){
+    log(`creating weather tile ${idx}`)
+    innerCardHTML = carouselHTML.slice(innerCardOpen[idx].index,innerCardClose[idx].index)
+    timeStr = /<div class="Qsy6Jf fUr1zf">(.*?)<\/div>/gm.exec(innerCardHTML)[1]
+    tempStr = /<div jscontroller="ZWq8q" data-c="(.*?)"/gm.exec(innerCardHTML)[1]
+    imgStr = /<g-img><img[^>]+src="([^"]+)/gm.exec(innerCardHTML)[1]
+
+
+    const stack = widget.addStack()
+    stack.layoutVertically()
+
+    stack.addSpacer()
+
+    let hstack = stack.addStack()
+    hstack.addSpacer()
+    let text = hstack.addText(timeStr)
+    text.textColor = black
+    text.font = Font.systemFont(12)
+    hstack.addSpacer()
+
+    stack.addSpacer()
+
+    hstack = stack.addStack()
+    hstack.addSpacer()
+    hstack.addImage(await Base64ToImage(imgStr))
+    hstack.addSpacer()
+
+    stack.addSpacer()
+
+    hstack = stack.addStack()
+    hstack.addSpacer()
+    text = hstack.addText(tempStr)
+    text.textColor = black
+    text.font = Font.semiboldSystemFont(14)
+    hstack.addSpacer()
+
+    stack.addSpacer()
+
+    widget.addSpacer()
+  }
 }
 
 async function createWidget() {
@@ -44,18 +101,24 @@ async function createWidget() {
   let padding = ((deviceScreen.width - 240) /5)
   let widgetSize = new Size(padding*4 + 240, padding*2 + 120)
 
-  let html = await getWeatherHTML(args.widgetParameter)
+  let webview = await getWeatherHTML(args.widgetParameter)
 
   let listWidget = new ListWidget()
+  let overviewStack = listWidget.addStack()
+  overviewStack.setPadding(0,0,0,0)
+  overviewStack.size = new Size(widgetSize.width,widgetSize.width/2)
+  overviewStack.layoutVertically()
+  overviewStack.bottomAlignContent()
 
   let gradient = new LinearGradient()
+  let html = await webview.getHTML()
   gradient.colors = getGradientColors(html)
   gradient.locations = [0.1,1]
-  listWidget.backgroundGradient=gradient
+  overviewStack.backgroundGradient=gradient
 
-  let textStack = listWidget.addStack()
-  listWidget.addSpacer(11)
-  let imageStack = listWidget.addStack()
+  let textStack = overviewStack.addStack()
+  overviewStack.addSpacer()
+  let imageStack = overviewStack.addStack()
   imageStack.bottomAlignContent()
   imageStack.size = new Size(widgetSize.width,widgetSize.width*(119/720))
   
@@ -70,76 +133,65 @@ async function createWidget() {
 
   let tempIconStack = summaryStack.addStack()
   tempIconStack.centerAlignContent()
-  const forecastInfo = getForecastInfo(html)
+
+  const forecastInfo = await getForecastInfo(webview)
 
   let temp = tempIconStack.addText(forecastInfo.temp)
   temp.font=Font.systemFont(36)
+  temp.textColor = black
   let feelsLike = summaryStack.addText(forecastInfo.feelsLike)
   feelsLike.font=Font.systemFont(14)
+  feelsLike.textColor = black
   let location = summaryStack.addText(forecastInfo.location)
   location.font=Font.systemFont(14)
+  location.textColor = black
 
-  const img_html=`<div style='max-width: 100%;max-height:100%;'><img src='${forecastInfo.image}' height='150' width='150' alt=''></div>`
+  const curIcon = await Base64ToImage(forecastInfo.image)
+  const icon = tempIconStack.addImage(curIcon)
+  icon.imageSize = new Size(36,36)
 
-  const img_js = `!function(t){"use strict";var g={parseExtension:function(t){return"png"},canvasToBlob:function(e){return e.toBlob?new Promise(function(t){e.toBlob(t)}):function(i){return new Promise(function(t){for(var e=window.atob(i.toDataURL().split(",")[1]),n=e.length,r=new Uint8Array(n),o=0;o<n;o++)r[o]=e.charCodeAt(o);t(new Blob([r],{type:"image/png"}))})}(e)},uid:function(){var t=0;return function(){return"u"+("0000"+(Math.random()*Math.pow(36,4)<<0).toString(36)).slice(-4)+t++}}(),delay:function(n){return function(e){return new Promise(function(t){setTimeout(function(){t(e)},n)})}},asArray:function(t){for(var e=[],n=t.length,r=0;r<n;r++)e.push(t[r]);return e},escapeXhtml:function(t){return t},makeImage:function(r){return new Promise(function(t,e){var n=new Image;n.onload=function(){t(n)},n.onerror=e,n.src=r})},width:function(t){var e=r(t,"border-left-width"),n=r(t,"border-right-width");return t.scrollWidth+e+n},height:function(t){var e=r(t,"border-top-width"),n=r(t,"border-bottom-width");return t.scrollHeight+e+n}};function r(t,e){var n=window.getComputedStyle(t).getPropertyValue(e);return parseFloat(n.replace("px",""))}var e={imagePlaceholder:void 0,cacheBust:!1},n={toSvg:o,toBlob:function(t,e){return function(n,r){return o(n,r).then(g.makeImage).then(g.delay(100)).then(function(t){var e=function(t){var e=document.createElement("canvas");{var n;e.width=r.width||g.width(t),e.height=r.height||g.height(t),r.bgcolor&&((n=e.getContext("2d")).fillStyle=r.bgcolor,n.fillRect(0,0,e.width,e.height))}return e}(n);return e.getContext("2d").drawImage(t,0,0),e})}(t,e||{}).then(g.canvasToBlob)},impl:{options:{},util:g}};function o(o,i){return function(t){void 0===t.imagePlaceholder?n.impl.options.imagePlaceholder=e.imagePlaceholder:n.impl.options.imagePlaceholder=t.imagePlaceholder;void 0===t.cacheBust?n.impl.options.cacheBust=e.cacheBust:n.impl.options.cacheBust=t.cacheBust}(i=i||{}),Promise.resolve(o).then(function(t){return function i(e,n,t){if(!t&&n&&!n(e))return Promise.resolve();return Promise.resolve(e).then(r).then(function(t){return o(e,t,n)}).then(function(t){return u(e,t)});function r(t){return t instanceof HTMLCanvasElement?g.makeImage(t.toDataURL()):t.cloneNode(!1)}function o(t,e,n){var r=t.childNodes;return 0===r.length?Promise.resolve(e):o(e,g.asArray(r),n).then(function(){return e});function o(e,t,n){var r=Promise.resolve();return t.forEach(function(t){r=r.then(function(){return i(t,n)}).then(function(t){t&&e.appendChild(t)})}),r}}function u(f,d){return d instanceof Element?Promise.resolve().then(t).then(e).then(n).then(r).then(function(){return d}):d;function t(){function t(t,e){var n,r;t.cssText?e.cssText=t.cssText:(n=t,r=e,g.asArray(n).forEach(function(t){r.setProperty(t,n.getPropertyValue(t),n.getPropertyPriority(t))}))}t(window.getComputedStyle(f),d.style)}function e(){function e(t){var e,n,r,o,i,u,c,a,h=window.getComputedStyle(f,t),l=h.getPropertyValue("content");function s(t){return t+": "+r.getPropertyValue(t)+(r.getPropertyPriority(t)?" !important":"")}""!==l&&"none"!==l&&(e=g.uid(),d.className=d.className+" "+e,(n=document.createElement("style")).appendChild((c="."+e+":"+t,a=(u=h).cssText?(i=(o=o=u).getPropertyValue("content"),o.cssText+" content: "+i+";"):(r=u,g.asArray(r).map(s).join("; ")+";"),document.createTextNode(c+"{"+a+"}"))),d.appendChild(n))}[":before",":after"].forEach(function(t){e(t)})}function n(){f instanceof HTMLTextAreaElement&&(d.innerHTML=f.value),f instanceof HTMLInputElement&&d.setAttribute("value",f.value)}function r(){d instanceof SVGElement&&(d.setAttribute("xmlns","http://www.w3.org/2000/svg"),d instanceof SVGRectElement&&["width","height"].forEach(function(t){var e=d.getAttribute(t);e&&d.style.setProperty(t,e)}))}}}(t,i.filter,!0)}).then(function(e){i.bgcolor&&(e.style.backgroundColor=i.bgcolor);i.width&&(e.style.width=i.width+"px");i.height&&(e.style.height=i.height+"px");i.style&&Object.keys(i.style).forEach(function(t){e.style[t]=i.style[t]});return e}).then(function(t){return e=t,n=i.width||g.width(o),r=i.height||g.height(o),Promise.resolve(e).then(function(t){return t.setAttribute("xmlns","http://www.w3.org/1999/xhtml"),(new XMLSerializer).serializeToString(t)}).then(g.escapeXhtml).then(function(t){return'<foreignObject x="0" y="0" width="100%" height="100%">'+t+"</foreignObject>"}).then(function(t){return'<svg xmlns="http://www.w3.org/2000/svg" width="'+n+'" height="'+r+'">'+t+"</svg>"}).then(function(t){return"data:image/svg+xml;charset=utf-8,"+t});var e,n,r})}"undefined"!=typeof module?module.exports=n:t.domtoimage=n}(this);
-    const iframe = document.createElement("iframe");
-    document.body.appendChild(iframe);
-    const iframedoc = iframe.contentDocument || iframe.contentWindow.document;
-    iframedoc.body.innerHTML = "${img_html}";
-    const blobToBase64 = (blob) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        return new Promise((resolve) => {
-            reader.onloadend = () => {
-                resolve(reader.result);
-            };
-        });
-    };
-    setTimeout(function () {
-        domtoimage.toBlob(iframedoc.body).then(async (blob) => {
-            completion(await blobToBase64(blob));
-        });
-    }, 1);
-  `;
 
-  const imageView = new WebView()
-  const base64Image = await imageView.evaluateJavaScript(img_js, true);
-  const imgReqBq = await new Request(base64Image);
-  const imgBq = await imgReqBq.loadImage();
-//   imgBq.size = new Size(0,36)
-
-  tempIconStack.addImage(imgBq)
 
   let temp_stack=infoStack.addStack()
   temp_stack.addSpacer()
   let summary=temp_stack.addText(forecastInfo.summary)
   summary.font=Font.semiboldSystemFont(16)
+  summary.textColor = black
   infoStack.addSpacer(10)
 
   temp_stack=infoStack.addStack()
   temp_stack.addSpacer()
   let precip=temp_stack.addText(forecastInfo.precip)
   precip.font=Font.systemFont(14)
+  precip.textColor = black
   temp_stack=infoStack.addStack()
   temp_stack.addSpacer()
   let hum=temp_stack.addText(forecastInfo.humidity)
   hum.font=Font.systemFont(14)
+  hum.textColor = black
   temp_stack=infoStack.addStack()
   temp_stack.addSpacer()
   let wind=temp_stack.addText(forecastInfo.wind)
   wind.font=Font.systemFont(14)
-  
-
+  wind.textColor = black
 
   let froggie = imageStack.addImage(await new Request(getFroggieURL(html)).loadImage())
   froggie.centerAlignImage()
   froggie.applyFittingContentMode()
 
-  listWidget.setPadding(0,0,0,0)
-  textStack.setPadding(15,25,0,5)
+  textStack.setPadding(20,20,0,20)
 
-  if (config.widgetFamily=='large') {
-    forecastStack=listWidget.addStack()
+
+
+  if (config.widgetFamily==='large'||!config.runsInWidget) {
+    let forecastStack=listWidget.addStack()
+    forecastStack.size = new Size(widgetSize.width,widgetSize.width/2)
+    forecastStack.setPadding(0,20,20,20)
+    forecastStack.backgroundColor = white
+
+    await addWeatherTiles(forecastStack, html, 5)
+  } else {
+    overviewStack.size = new Size(widgetSize.width,widgetSize.height)
   }
 
   return listWidget
@@ -150,7 +202,7 @@ let widget = await createWidget()
 if (config.runsInWidget) {
   Script.setWidget(widget)
 } else {
-  widget.presentMedium()
+  widget.presentLarge()
 }
 
 Script.complete()
