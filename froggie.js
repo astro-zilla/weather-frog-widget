@@ -50,16 +50,16 @@ async function addWeatherTiles(widget,webview,num) {
 
   let js = `
   var res = {
-    time: document.querySelector('.D34Qd > tile-container:nth-child('+num+') > g-inner-card:nth-child(1) > div:nth-child(1) > div:nth-child(1)').innerHTML,
-    temp: document.querySelector('.D34Qd > tile-container:nth-child('+num+') > g-inner-card:nth-child(1) > div:nth-child(1) > div:nth-child(4)').innerHTML,
-    img: document.querySelector('.D34Qd > tile-container:nth-child('+num+') > g-inner-card:nth-child(1) > div:nth-child(1) > tile-img:nth-child(3) > g-img:nth-child(1) > img:nth-child(1)').src
+    time: document.querySelector('.D34Qd > tile-container:nth-child(NUM) > g-inner-card:nth-child(1) > div:nth-child(1) > div:nth-child(1)').innerHTML,
+    temp: document.querySelector('.D34Qd > tile-container:nth-child(NUM) > g-inner-card:nth-child(1) > div:nth-child(1) > div:nth-child(4)').innerHTML,
+    img: document.querySelector('.D34Qd > tile-container:nth-child(NUM) > g-inner-card:nth-child(1) > div:nth-child(1) > tile-img:nth-child(3) > g-img:nth-child(1) > img:nth-child(1)').src
   }
   res
   `
 
   for (let idx=0; idx<num; idx++){
     log(`creating weather tile ${idx}`)
-    let res = await webview.evaluateJavaScript(js.replace(/num/g,idx+1))
+    let res = await webview.evaluateJavaScript(js.replace(/NUM/g,idx+1))
 
 
     const stack = widget.addStack()
