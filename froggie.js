@@ -31,14 +31,14 @@ async function getForecastInfo(webview) {
   let js = `
   var weatherInfo = document.querySelector('.iajBOd')
   var res = {
-    temp: weatherInfo.querySelector('.AZovPc > div:nth-child(1)').innerHTML,
-    feelsLike: weatherInfo.querySelector('span.mPUmSe > div:nth-child(1)').innerHTML,
+    temp: weatherInfo.querySelector('.AZovPc').innerHTML,
+    feelsLike: weatherInfo.querySelector('span.mPUmSe').innerHTML,
     location: document.querySelector('span.BBwThe').innerHTML,
     image: weatherInfo.querySelector('.lP6sWe > g-img:nth-child(2) > img:nth-child(1)').src,
     summary: weatherInfo.querySelector('.crimBc').innerHTML,
     precip: "Precip: " + weatherInfo.querySelector('div.mPUmSe:nth-child(2) > span:nth-child(2)').innerHTML,
     humidity: "Humidity: " + weatherInfo.querySelector('.TEk95b > div:nth-child(3) > span:nth-child(2)').innerHTML,
-    wind: "Wind: " + weatherInfo.querySelector('.TToly').innerHTML
+    wind: "Wind: " + weatherInfo.querySelector('div.mPUmSe:nth-child(4)').text
   }
   res
   `
@@ -46,20 +46,20 @@ async function getForecastInfo(webview) {
   return res
 }
 
-async function addWeatherTiles(widget,html,num) {
+async function addWeatherTiles(widget,webview,num) {
 
-  const carouselHTML = /<g-scrolling-carousel[^>]+jsname="wFMUUc" jscontroller="pgCXqb"[^>]+>(.*?)<\/g-scrolling-carousel>/gm.exec(html)[1]
-  const innerCardOpen = [...carouselHTML.matchAll(/<g-inner-card[^>]+>/gm)]
-  const innerCardClose = [...carouselHTML.matchAll(/<\/g-inner-card>/gm)]
-
-  let innerCardHTML="",timeStr="",tempStr="",imgStr=""
+  let js = `
+  var res = {
+    time: document.querySelector('.D34Qd > tile-container:nth-child('+num+') > g-inner-card:nth-child(1) > div:nth-child(1) > div:nth-child(1)').innerHTML,
+    temp: document.querySelector('.D34Qd > tile-container:nth-child('+num+') > g-inner-card:nth-child(1) > div:nth-child(1) > div:nth-child(4)').innerHTML,
+    img: document.querySelector('.D34Qd > tile-container:nth-child('+num+') > g-inner-card:nth-child(1) > div:nth-child(1) > tile-img:nth-child(3) > g-img:nth-child(1) > img:nth-child(1)').src
+  }
+  res
+  `
 
   for (let idx=0; idx<num; idx++){
     log(`creating weather tile ${idx}`)
-    innerCardHTML = carouselHTML.slice(innerCardOpen[idx].index,innerCardClose[idx].index)
-    timeStr = /<div class="Qsy6Jf fUr1zf">(.*?)<\/div>/gm.exec(innerCardHTML)[1]
-    tempStr = /<div jscontroller="ZWq8q" data-c="(.*?)"/gm.exec(innerCardHTML)[1]
-    imgStr = /<g-img><img[^>]+src="([^"]+)/gm.exec(innerCardHTML)[1]
+    let res = await webview.evaluateJavaScript(js.replace(/num/g,idx+1))
 
 
     const stack = widget.addStack()
@@ -69,7 +69,7 @@ async function addWeatherTiles(widget,html,num) {
 
     let hstack = stack.addStack()
     hstack.addSpacer()
-    let text = hstack.addText(timeStr)
+    let text = hstack.addText(res.time)
     text.textColor = black
     text.font = Font.systemFont(12)
     hstack.addSpacer()
@@ -78,14 +78,14 @@ async function addWeatherTiles(widget,html,num) {
 
     hstack = stack.addStack()
     hstack.addSpacer()
-    hstack.addImage(await Base64ToImage(imgStr))
+    hstack.addImage(await Base64ToImage(res.img))
     hstack.addSpacer()
 
     stack.addSpacer()
 
     hstack = stack.addStack()
     hstack.addSpacer()
-    text = hstack.addText(tempStr)
+    text = hstack.addText(res.temp)
     text.textColor = black
     text.font = Font.semiboldSystemFont(14)
     hstack.addSpacer()
@@ -189,7 +189,7 @@ async function createWidget() {
     forecastStack.setPadding(0,20,20,20)
     forecastStack.backgroundColor = white
 
-    await addWeatherTiles(forecastStack, html, 5)
+    await addWeatherTiles(forecastStack, webview, 5)
   } else {
     overviewStack.size = new Size(widgetSize.width,widgetSize.height)
   }
