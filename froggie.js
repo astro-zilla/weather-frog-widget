@@ -38,7 +38,7 @@ async function getForecastInfo(webview) {
     summary: weatherInfo.querySelector('.crimBc').innerHTML,
     precip: "Precip: " + weatherInfo.querySelector('div.mPUmSe:nth-child(2) > span:nth-child(2)').innerHTML,
     humidity: "Humidity: " + weatherInfo.querySelector('.TEk95b > div:nth-child(3) > span:nth-child(2)').innerHTML,
-    wind: "Wind: " + weatherInfo.querySelector('div.mPUmSe:nth-child(4)').text
+    wind: "Wind: " + weatherInfo.querySelector('div.mPUmSe:nth-child(4)').childNodes[1].textContent
   }
   res
   `
