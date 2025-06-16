@@ -104,6 +104,7 @@ async function createWidget() {
   let webview = await getWeatherHTML(args.widgetParameter)
 
   let listWidget = new ListWidget()
+  listWidget.color = Color.white()
   let overviewStack = listWidget.addStack()
   overviewStack.setPadding(0,0,0,0)
   overviewStack.size = new Size(widgetSize.width,widgetSize.width/2)
